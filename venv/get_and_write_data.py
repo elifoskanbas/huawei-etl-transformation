@@ -1,43 +1,55 @@
-# get_and_write_data.py
-import pandas as pd
-import requests
-from time import sleep, time
-from datetime import datetime, timedelta
+import pandas as pd # data isleme ve tabloya cevirme islemleri icin
+import requests  # API'dan data cekmek icin
+from time import sleep, time  # kodun belli sure beklemesi icin
+from datetime import datetime  # zaman  islemleri icin
 
-def get_api_data():
-    user_data = []
-    start_time = time()
-    duration = 10 * 60  # 10 dakika = 600 saniye
+def get_api_data(): # API'den data ceken fonksiyon
+    users = [] # userlari saklayacagimiz bos liste
 
-    print("Veri çekme başladı...")
-
-    while (time() - start_time) < duration:
+    for i in range(300):  # 10 dakika boyunca her 2 saniyede bir API'den data cekmek icin 600 / 2 = 300 kez 
         try:
-            response = requests.get("https://randomuser.me/api/")
-            if response.status_code == 200:
-                json_data = response.json()
-                user_data.append(json_data['results'][0])  # Sadece 'results' içindeki ilk kullanıcı
+            response = requests.get("https://randomuser.me/api") # randomuser.me API'sine request gonderilir
+
+            if response.status_code == 200:  # eger request basariliysa (200 OK)
+                data = response.json()['results'][0] # gelen JSON datasini alir ve ilk useri seceriz
+
+                
+                user_info = { # user bilgilerini bir dictionary olarak toplariz
+                    'gender': data['gender'],
+                    'title': data['name']['title'],
+                    'first_name': data['name']['first'],
+                    'last_name': data['name']['last'],
+                    'email': data['email'],
+                    'dob': data['dob']['date'],
+                    'registered': data['registered']['date'],
+                    'country': data['location']['country'],
+                    'city': data['location']['city'],
+                    'latitude': data['location']['coordinates']['latitude'],
+                    'longitude': data['location']['coordinates']['longitude'],
+                    'username': data['login']['username'],
+                    'phone': data['phone'],
+                    'cell': data['cell'],
+                    'nat': data['nat'],
+                    'picture': data['picture']['large']
+                }
+                users.append(user_info) # user infosunu listeye ekleriz
+
             else:
-                print("API hatası:", response.status_code)
+                print(f"Hata! Durum kodu: {response.status_code}") # basarisiz requestlerde hata mesaji yazdirilir
         except Exception as e:
-            print("İstek sırasında hata:", e)
-        
+            print(f"İstek sirasinda hata olustu: {e}")  # request sirasinda beklenmeyen bir hata olursa yazdirilir
+            
         sleep(2)  # 2 saniye bekle
 
-    print("Veri çekme tamamlandı.")
-    return user_data
+    return users # tum user datalarini dondurur
 
-def create_parquet_file(data, filename="user_data.parquet"):
-    df = pd.json_normalize(data)
-    
-    # Posta kodu karışıklığına karşı tüm 'location.postcode' sütununu string yap
-    if 'location.postcode' in df.columns:
-        df['location.postcode'] = df['location.postcode'].astype(str)
+def create_parquet_file(data): # toplanan datalari Parquet fileina kaydeden fonksiyon
+    df = pd.DataFrame(data) #listeyi pandas DataFrame (tablo) haline getiririz
+    df.to_parquet("users.parquet", engine='pyarrow', index=False) # Parquet fileina yazariz. (engine='pyarrow' kullanarak)
+    print("dataler users.parquet dosyasina yazildi.") # file yazma islemi tamamlandiginda mesaj verir
 
-    df.to_parquet(filename, index=False)
-    print(f"{filename} başarıyla oluşturuldu.")
-
-
-if __name__ == "__main__":  
-    data = get_api_data()
-    create_parquet_file(data)
+if __name__ == "__main__": # main program blogu - bu file dogrudan calistirildiginda devreye girer
+    print("data cekme islemi basladi...")
+    data = get_api_data()  # API'den user datalarini al
+    print("data cekme tamamlandi. Parquet dosyasi olusturuluyor...")
+    create_parquet_file(data) # datayi Parquet fileina kaydet
